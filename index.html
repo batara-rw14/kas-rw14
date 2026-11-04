@@ -365,7 +365,7 @@
     <!-- SCRIPT LOGIC TERINTEGRASI GOOGLE SHEETS -->
     <script>
         // ==========================================================
-        // GANTI URL DI BAWAH INI DENGAN WEB APP URL GOOGLE APPS SCRIPT ANDA
+        // URL WEB APP GOOGLE APPS SCRIPT ANDA
         // ==========================================================
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyx7K91pIjD_z0sXJuNXflPlxpGSFQNo0EJdAudZ-Yc6maCaKZIKLYazur0qOnOA9A/exec";
 
@@ -404,6 +404,15 @@
         }
         function getAdminPassword() {
             return localStorage.getItem(PASS_KEY) || DEFAULT_PASS;
+        }
+
+        // Fungsi otomatis memformat angka dengan titik ribuan saat diketik
+        function formatInputRupiah(input) {
+            let angka = input.value.replace(/[^0-9]/g, '');
+            if (angka) {
+                angka = parseInt(angka, 10).toLocaleString('id-ID');
+            }
+            input.value = angka;
         }
 
         function fetchDataFromSheets() {
@@ -648,6 +657,10 @@
             e.preventDefault();
             if (!isAdmin) return;
 
+            // Bersihkan titik ribuan dari input text sebelum dikirim ke Google Sheets
+            const nominalStr = document.getElementById("formNominal").value.replace(/\./g, '');
+            const nominal = parseFloat(nominalStr);
+
             const payload = {
                 action: "add",
                 id: new Date().getTime(),
@@ -655,7 +668,7 @@
                 jenis: document.getElementById("formJenis").value,
                 kategori: document.getElementById("formKategori").value,
                 wilayah: document.getElementById("formRT").value,
-                nominal: parseFloat(document.getElementById("formNominal").value),
+                nominal: nominal,
                 keterangan: document.getElementById("formKeterangan").value
             };
 
