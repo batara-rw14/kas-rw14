@@ -1,7 +1,8 @@
 {
   "name": "Kas Digital RW 14",
   "short_name": "Kas RW 14",
-  "start_url": "/kas-rw14/",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#312e81",
   "theme_color": "#312e81",
