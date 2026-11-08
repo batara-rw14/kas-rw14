@@ -165,16 +165,24 @@
         <!-- CHARTS SECTION -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 lg:col-span-2 flex flex-col">
-                <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wider">
-                    <i class="fa-solid fa-chart-column text-brand-600"></i> Tren Keuangan Bulanan
-                </h3>
-                <div class="relative flex-grow min-h-[230px]"><canvas id="barChart"></canvas></div>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wider">
+                        <i class="fa-solid fa-chart-column text-brand-600"></i> Tren Keuangan Bulanan
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase">Tahun:</label>
+                        <select id="filterTahunGrafik" onchange="renderApp()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-xl px-3 py-1.5 outline-none font-bold">
+                            <!-- Opsi tahun akan dimuat otomatis oleh JavaScript -->
+                        </select>
+                    </div>
+                </div>
+                <div class="relative flex-grow min-h-[250px]"><canvas id="barChart"></canvas></div>
             </div>
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col">
                 <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wider">
                     <i class="fa-solid fa-chart-pie text-brand-600"></i> Kategori Pengeluaran
                 </h3>
-                <div class="relative flex-grow flex items-center justify-center min-h-[230px]"><canvas id="doughnutChart"></canvas></div>
+                <div class="relative flex-grow flex items-center justify-center min-h-[250px]"><canvas id="doughnutChart"></canvas></div>
             </div>
         </div>
 
@@ -353,7 +361,7 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nominal (Rp) *</label>
                     <input type="text" id="formNominal" required placeholder="Contoh: 1.000.000" oninput="formatInputRupiah(this)" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold outline-none">
-                </div> <!-- [DI PERBAIKI: Menambahkan tag penutup div yang sebelumnya terlewat] -->
+                </div>
                 <div class="flex gap-2 pt-2 border-t">
                     <button type="button" onclick="closeModalTambah()" class="w-1/2 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl">Batal</button>
                     <button type="submit" class="w-1/2 py-2.5 text-xs font-bold text-white bg-brand-600 rounded-xl shadow">Simpan</button>
@@ -570,7 +578,37 @@
             document.getElementById("totalSaldo").textContent = formatRupiah(saldo);
             document.getElementById("totalPemasukan").textContent = formatRupiah(totalMasuk);
             document.getElementById("totalPengeluaran").textContent = formatRupiah(totalKeluar);
-            renderCharts(totalMasuk, totalKeluar);
+
+            updateYearFilterOptions();
+            renderCharts();
+        }
+
+        function updateYearFilterOptions() {
+            const yearSelect = document.getElementById("filterTahunGrafik");
+            const currentSelected = yearSelect.value;
+            
+            // Ambil daftar tahun unik dari data transaksi
+            const years = [...new Set(transactions.map(t => {
+                if (!t.tanggal) return new Date().getFullYear();
+                return new Date(t.tanggal).getFullYear();
+            }))].sort((a, b) => b - a);
+
+            if (years.length === 0) {
+                years.push(new Date().getFullYear());
+            }
+
+            yearSelect.innerHTML = "";
+            years.forEach(y => {
+                const opt = document.createElement("option");
+                opt.value = y;
+                opt.textContent = y;
+                yearSelect.appendChild(opt);
+            });
+
+            // Kembalikan pilihan tahun sebelumnya jika masih ada
+            if (currentSelected && years.includes(Number(currentSelected))) {
+                yearSelect.value = currentSelected;
+            }
         }
 
         function filterData() {
@@ -689,33 +727,81 @@
             }
         }
 
-        function renderCharts(totalMasuk, totalKeluar) {
-            const ctxBar = document.getElementById("barChart").getContext("2d");
-            if (chartBarInstance) chartBarInstance.destroy();
-            chartBarInstance = new Chart(ctxBar, {
-                type: 'bar',
-                data: {
-                    labels: ['Total Pemasukan', 'Total Pengeluaran'],
-                    datasets: [{
-                        label: 'Nominal (Rp)',
-                        data: [totalMasuk, totalKeluar],
-                        backgroundColor: ['#10b981', '#f43f5e'],
-                        borderRadius: 8
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, ticks: { callback: function(val) { return 'Rp ' + (val / 1000) + 'rb'; }, font: { size: 10 } } } }
+        function renderCharts() {
+            const selectedYear = parseInt(document.getElementById("filterTahunGrafik").value) || new Date().getFullYear();
+
+            // Inisialisasi array 12 bulan (Jan - Des)
+            const monthlyMasuk = new Array(12).fill(0);
+            const monthlyKeluar = new Array(12).fill(0);
+
+            transactions.forEach(t => {
+                if (!t.tanggal) return;
+                const d = new Date(t.tanggal);
+                if (d.getFullYear() === selectedYear) {
+                    const month = d.getMonth(); // 0 = Jan, 11 = Des
+                    if (t.jenis === "MASUK") {
+                        monthlyMasuk[month] += t.nominal;
+                    } else if (t.jenis === "KELUAR") {
+                        monthlyKeluar[month] += t.nominal;
+                    }
                 }
             });
 
+            const ctxBar = document.getElementById("barChart").getContext("2d");
+            if (chartBarInstance) chartBarInstance.destroy();
+            
+            chartBarInstance = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
+                    datasets: [
+                        {
+                            label: 'Pemasukan',
+                            data: monthlyMasuk,
+                            backgroundColor: '#10b981',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Pengeluaran',
+                            data: monthlyKeluar,
+                            backgroundColor: '#f43f5e',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } 
+                    },
+                    scales: { 
+                        y: { 
+                            beginAtZero: true, 
+                            ticks: { 
+                                callback: function(val) { 
+                                    if (val >= 1000000) return 'Rp ' + (val / 1000000) + 'jt';
+                                    if (val >= 1000) return 'Rp ' + (val / 1000) + 'rb';
+                                    return 'Rp ' + val; 
+                                }, 
+                                font: { size: 10 } 
+                            } 
+                        } 
+                    }
+                }
+            });
+
+            // Render Doughnut Chart (Kategori Pengeluaran)
             const ctxDoughnut = document.getElementById("doughnutChart").getContext("2d");
             if (chartDoughnutInstance) chartDoughnutInstance.destroy();
+            
             const categories = {};
-            transactions.filter(t => t.jenis === "KELUAR").forEach(t => {
+            transactions.filter(t => {
+                if (!t.tanggal) return t.jenis === "KELUAR";
+                return t.jenis === "KELUAR" && new Date(t.tanggal).getFullYear() === selectedYear;
+            }).forEach(t => {
                 categories[t.kategori] = (categories[t.kategori] || 0) + t.nominal;
             });
+
             const labels = Object.keys(categories);
             const dataVal = Object.values(categories);
 
